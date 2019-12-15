@@ -1,7 +1,10 @@
+import matplotlib.pyplot as plt
+from matplotlib_venn import venn2
 import pandas as pd
+import seaborn as sns
 
 from .dataloader import DataLoader
-from .const import CATEGORICAL_COLUMNS, NUMERICAL_COLUMNS
+from .const import CATEGORICAL_COLUMNS, NUMERICAL_COLUMNS, TARGET_COLUMN
 
 
 class DataAnalyzer:
@@ -31,7 +34,7 @@ class DataAnalyzer:
             df["nuniques_rate"] = df["#uniques"] / len(self.train)
         return df
 
-    def check_categorical_values(self, N: int = 10, is_train: bool = True) -> dict:
+    def check_categorical_values(self, is_train: bool = True, N: int = 10) -> dict:
         dfs = {}
 
         df_ = pd.DataFrame(index=self.cat_cols)
@@ -55,11 +58,47 @@ class DataAnalyzer:
             dfs[cat_col] = df_
         return dfs
 
-    def check_feature_target(self):
-        pass
+    def check_feature_target(self) -> pd.Series:
+        return self.train.corr()[TARGET_COLUMN]
 
-    def check_categorical_target(self):
-        pass
+    def check_categorical_target(self) -> dict:
+        dfs = {}
+        for cat_col in self.cat_cols:
+            df_ = self.train.groupby(cat_col)[TARGET_COLUMN].mean()
+            dfs[cat_col] = df_
+        return dfs
 
-    def check_venn_diagram(self):
-        pass
+    def check_distplot(self, bins=10) -> None:
+        sns.set()
+        for num_col in self.num_cols:
+            sns.distplot(self.train[num_col], bins=bins, label="train")
+            sns.distplot(self.test[num_col], bins=bins, label="test")
+            plt.title(num_col)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
+    def check_venn_diagram(self) -> None:
+        sns.set()
+        for cat_col in self.cat_cols:
+            venn2(
+                [set(self.train[cat_col]), set(self.test[cat_col])],
+                set_labels=("train", "test"),
+            )
+            plt.title(cat_col)
+            plt.tight_layout()
+            plt.show()
+
+    def analyze(self):
+        print(
+            """
+        analyzer = DataAnalyzer()
+        analyzer.load()
+        df = analyzer.check_static()
+        dfs = analyzer.check_categorical_values()
+        ser = analyzer.check_feature_target()
+        dfs = analyzer.check_categorical_target()
+        analyzer.check_distplot()
+        analyzer.check_venn_diagram()
+        """
+        )
