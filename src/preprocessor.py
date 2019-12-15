@@ -251,7 +251,7 @@ class SequenceTransformer(BaseFitTransformer):
         df_user = df.loc[:, [self.key_col, "sequence"]].drop_duplicates()
         df_ = self.tfv.transform(df_user.loc[:, columns])
         df_ = self.svd.transform(df_)
-        df_ = pd.DataFrame(df_).add_prefix(f"tdidf_svd_")
+        df_ = pd.DataFrame(df_).add_prefix(f"tfidf_svd_")
         df_.index = df_user[self.key_col]
         return df_
 
