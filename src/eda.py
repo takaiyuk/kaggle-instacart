@@ -21,18 +21,30 @@ class DataAnalyzer:
 
     def check_statistic(self, is_train: bool = True) -> pd.DataFrame:
         if is_train:
-            df = self.train.loc[:, self.num_cols].describe().T
-            df["#null"] = self.train.loc[:, self.cat_cols].isnull().sum().values
-            df["null_rate"] = df["#null"] / len(self.train)
-            df["#uniques"] = self.train.loc[:, self.cat_cols].nunique().values
-            df["nuniques_rate"] = df["#uniques"] / len(self.train)
+            df_num = self.train.loc[:, self.num_cols].describe().T
+            df_num["#null"] = self.train.loc[:, self.num_cols].isnull().sum().values
+            df_num["null_rate"] = df_num["#null"] / len(self.train)
+            df_num["#uniques"] = self.train.loc[:, self.num_cols].nunique().values
+            df_num["nuniques_rate"] = df_num["#uniques"] / len(self.train)
+            
+            df_cat = pd.DataFrame(index=self.cat_cols)
+            df_cat["#null"] = self.train.loc[:, self.cat_cols].isnull().sum().values
+            df_cat["null_rate"] = df_cat["#null"] / len(self.train)
+            df_cat["#uniques"] = self.train.loc[:, self.cat_cols].nunique().values
+            df_cat["nuniques_rate"] = df_cat["#uniques"] / len(self.train)
         else:
-            df = self.test.loc[:, self.num_cols].describe().T
-            df["#null"] = self.train.loc[:, self.cat_cols].isnull().sum().values
-            df["null_rate"] = df["#null"] / len(self.train)
-            df["#uniques"] = self.train.loc[:, self.cat_cols].nunique().values
-            df["nuniques_rate"] = df["#uniques"] / len(self.train)
-        return df
+            df_num = self.test.loc[:, self.num_cols].describe().T
+            df_num["#null"] = self.test.loc[:, self.num_cols].isnull().sum().values
+            df_num["null_rate"] = df_num["#null"] / len(self.test)
+            df_num["#uniques"] = self.test.loc[:, self.num_cols].nunique().values
+            df_num["nuniques_rate"] = df_num["#uniques"] / len(self.test)
+            
+            df_cat = pd.DataFrame(index=self.cat_cols)
+            df_cat["#null"] = self.test.loc[:, self.cat_cols].isnull().sum().values
+            df_cat["null_rate"] = df_cat["#null"] / len(self.test)
+            df_cat["#uniques"] = self.test.loc[:, self.cat_cols].nunique().values
+            df_cat["nuniques_rate"] = df_cat["#uniques"] / len(self.test)
+        return df_num, df_cat
 
     def check_categorical_values(self, is_train: bool = True, N: int = 10) -> dict:
         dfs = {}
@@ -59,7 +71,7 @@ class DataAnalyzer:
         return dfs
 
     def check_feature_target(self) -> pd.Series:
-        return self.train.corr()[TARGET_COLUMN]
+        return self.train.loc[:, self.num_cols+[TARGET_COLUMN]].corr()[TARGET_COLUMN]
 
     def check_categorical_target(self) -> dict:
         dfs = {}
@@ -94,7 +106,7 @@ class DataAnalyzer:
             """
         analyzer = DataAnalyzer()
         analyzer.load()
-        df = analyzer.check_static()
+        df_num, df_cat = analyzer.check_statistic()
         dfs = analyzer.check_categorical_values()
         ser = analyzer.check_feature_target()
         dfs = analyzer.check_categorical_target()
