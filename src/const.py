@@ -1,7 +1,7 @@
 import os
 
 # PATH ------------------------------
-INPUT_PREFIX = "./input/nikkei"
+INPUT_PREFIX = "./input/dsb2019"
 TRAIN_PATH = os.path.join(INPUT_PREFIX, "train.csv")
 TEST_PATH = os.path.join(INPUT_PREFIX, "test.csv")
 SAMPLE_SUBMISSION_PATH = os.path.join(INPUT_PREFIX, "sample_submission.csv")
@@ -12,32 +12,14 @@ MODEL_PREFIX = "./model"
 SUBMIT_PREFIX = "./submit"
 
 # COLUMNS ------------------------------
-TARGET_COLUMN = "age"
-DROP_COLUMNS = [
-    "er_dev_browser_family",
-    "er_dev_browser_version",
-    "er_rfs_service_name",
-    "er_rfs_service_type",
-    "er_rfc_kiji_id_raw",
-]
-NUMERICAL_COLUMNS = ["ig_ctx_red_viewed_percent", "ig_ctx_red_elapsed_since_page_load"]
-CATEGORICAL_COLUMNS = [
-    "er_geo_bc_flag",
-    "ig_ctx_product",
-    "er_geo_pref_j_name",
-    "er_geo_city_j_name",
-    "er_geo_country_code",
-    "er_dev_device_name",
-    "er_dev_device_type",
-    "er_dev_manufacture",
-    "er_dev_os_family",
-    "er_dev_os_version",
-    "er_rfs_reffered_visit",
-    "ig_usr_connection",
-]
-KEY_COLUMN = "user_id"
-VALUE_COLUMN = "kiji_id"
-TIMESTAMP_COLUMN = "ts"
+TARGET_COL = "accuracy"
+TARGET_COLUMN = "accuracy"
+DROP_COLUMNS = []
+NUMERICAL_COLUMNS = ["game_time"]
+CATEGORICAL_COLUMNS = ["game_session", "event_code", "title"]
+KEY_COLUMN = "installation_id"
+VALUE_COLUMN = "title"
+TIMESTAMP_COLUMN = "timestamp"
 UNUSED_COLUMNS = [""]
 
 # FIT PARAMS ------------------------------

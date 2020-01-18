@@ -218,7 +218,14 @@ class SequenceGenerator:
     def process(self, df: pd.DataFrame) -> pd.DataFrame:
         d = {}
         for id_, df_ in df.groupby(self.key_col):
-            d[id_] = " ".join(np.array(df_[self.val_col].values.tolist(), dtype=str))
+            d[id_] = " ".join(
+                np.array(
+                    df_[self.val_col]
+                    .apply(lambda x: x.replace(" ", "_"))
+                    .values.tolist(),
+                    dtype=str,
+                )
+            )
         df["sequence"] = df[self.key_col].map(d)
         return df
 
@@ -241,14 +248,14 @@ class SequenceTransformer(BaseFitTransformer):
         self.svd = TruncatedSVD(n_components=32, random_state=42)
 
     def fit_(self, df: pd.DataFrame, columns: list, target: str) -> None:
-        df_user = df.loc[:, [self.key_col, "sequence"]].drop_duplicates()
+        df_user = df.loc[:, [self.key_col] + columns].drop_duplicates()
         self._tfidf(columns)
         self._svd()
         df_ = self.tfv.fit_transform(df_user.loc[:, columns])
         self.svd.fit(df_)
 
     def transform_(self, df: pd.DataFrame, columns: list) -> pd.DataFrame:
-        df_user = df.loc[:, [self.key_col, "sequence"]].drop_duplicates()
+        df_user = df.loc[:, [self.key_col] + columns].drop_duplicates()
         df_ = self.tfv.transform(df_user.loc[:, columns])
         df_ = self.svd.transform(df_)
         df_ = pd.DataFrame(df_).add_prefix(f"tfidf_svd_")
@@ -280,6 +287,6 @@ class Preprocessor:
             df, filter_col="ts_diff_days", window=1, numrical_columns=self.num_cols
         )
         df = SequenceGenerator(self.key_col, self.val_col).process(df)
-        df = self.st.process(df, "sequence", is_train)
+        df = self.st.process(df, ["sequence"], is_train)
         print(df.head())
         return df

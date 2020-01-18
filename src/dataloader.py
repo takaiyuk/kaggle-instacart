@@ -5,6 +5,8 @@ from .const import (
     TEST_PATH,
     SAMPLE_SUBMISSION_PATH,
     DROP_COLUMNS,
+    TIMESTAMP_COLUMN,
+    KEY_COLUMN,
 )
 
 
@@ -21,14 +23,14 @@ class DataLoader:
 
     def load_train(self, path=None, nrows=None):
         if path is None:
-            df = self._load(self.tr_path, nrows=nrows, parse_dates=["ts"])
+            df = self._load(self.tr_path, nrows=nrows, parse_dates=[TIMESTAMP_COLUMN])
             return df.drop(DROP_COLUMNS, axis=1)
 
     def load_test(self, path=None, nrows=None):
         if path is None:
-            df = self._load(self.te_path, nrows=nrows, parse_dates=["ts"])
+            df = self._load(self.te_path, nrows=nrows, parse_dates=[TIMESTAMP_COLUMN])
             return df.drop(DROP_COLUMNS, axis=1)
 
     def load_sample_submission(self, path=None, nrows=None):
         if path is None:
-            return self._load(self.sub_path, nrows=nrows, index_col="user_id")
+            return self._load(self.sub_path, nrows=nrows, index_col=KEY_COLUMN)
