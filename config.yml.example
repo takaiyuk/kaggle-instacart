@@ -1,0 +1,61 @@
+mode:
+    project: ""
+    objective: "reg"
+path:
+    train: "../input/project/train.csv"
+    test: "../input/project/test.csv"
+    samble_submission: "../input/project/samble_submission.csv"
+    importance: "./importance"
+    logs: "./logs"
+    model: "./model"
+    preprocess: "./input/preprocess"
+    submit: "./submit"
+column:
+    target: ""
+    index: None
+    key: None
+    timestamp: ""
+    categorical: []
+    numerical: []
+    kfold_stratified: ""
+    kfold_group: ""
+parameter:
+    common:
+        kfold_method: "normal"
+        kfold_number: 5
+        objective: "reg"
+    lgb:
+        objective: "regression"
+        n_estimators: 4000
+        learning_rate: 0.02
+        num_leaves: 127
+        min_child_samples: 20
+        seed: 42
+        max_depth: 10
+        colsample_bytree: 0.9
+        subsample:  0.9
+        subsample_freq: 1
+        reg_alpha: 0.1
+        reg_lambda: 1.0
+        early_stopping_rounds: 1000
+        verbose: -1
+        num_classes: 1
+    cb:
+        loss_function: 'RMSE'
+        iterations: 5000
+        depth: 10
+        random_seed: 42
+        colsample_bylevel: 0.9
+        l2_leaf_reg: 1.0
+        early_stopping_rounds: 1000
+        task_type: "CPU"
+        od_type: "Iter"
+        use_best_model: True
+    xgb:
+        max_depth: 7
+    nn:
+        dropout: 0.25
+    linear:
+        C: 0.1
+    null_importance:
+        threshold: 10
