@@ -18,9 +18,6 @@ import xgboost as xgb
 from .featureselector import NullImportance
 
 
-DROP_COLUMNS = []
-
-
 def AUC(y_true, y_pred):
     return round(auc(y_true, y_pred), 6)
 
@@ -45,6 +42,7 @@ class BaseEstimator:
         self.stratified_column = self.config["column"]["stratified"]
         self.group_column = self.config["column"]["group"]
         self.target_column = self.config["column"]["target"]
+        self.drop_columns = self.config["column"]["drop"]
         self.importance = self.config["path"]["importance"]
         self.ni_threshold = self.config["parameter"]["null_importance"]["threshold"]
 
@@ -57,7 +55,6 @@ class BaseEstimator:
         self.pred_valid = np.zeros(0)
         self.pred_test = np.zeros(0)
 
-        self.drop_columns = DROP_COLUMNS
         self.selected_columns = []
         self.selected_features = []
         self.X_train = pd.DataFrame()

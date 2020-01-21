@@ -7,9 +7,6 @@ from .abstractEstimator import (
 )
 
 
-DROP_COLUMNS = []
-
-
 class CatboostEstimator(AbstractCatboostEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)

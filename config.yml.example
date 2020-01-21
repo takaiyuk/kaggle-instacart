@@ -17,6 +17,7 @@ column:
     timestamp: ""
     categorical: []
     numerical: []
+    drop: []
     kfold_stratified: ""
     kfold_group: ""
 parameter:
