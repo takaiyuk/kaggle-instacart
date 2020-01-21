@@ -16,7 +16,9 @@ column:
     kfold_group: ""
 parameter:
     common:
-        folds: 5
+        kfold_method: "normal"
+        kfold_number: 5
+        objective: "reg"
     lgb:
         objective: "regression"
         n_estimators: 4000

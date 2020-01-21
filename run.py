@@ -16,18 +16,11 @@ from src.estimator import Estimator
 parser = argparse.ArgumentParser(description="argparse for run.py")
 parser.add_argument("--debug", action="store_true", help="debug mode")
 parser.add_argument(
-    "--kfold",
-    default="normal",
-    required=False,
-    choices=["normal", "stratified", "group"],
-    help="kfold method",
-)
-parser.add_argument(
     "--model",
     default="lgb",
     required=False,
     choices=["lgb", "cb", "xgb", "nn", "linear"],
-    help="kfold method",
+    help="model type",
 )
 p = vars(parser.parse_args())
 
@@ -37,19 +30,20 @@ class Runner:
         self.parser = parser
         self.config = load_yaml()
         self.debug = parser["debug"]
-        self.kfold = parser["kfold"]
         self.model = parser["model"]
 
         self.logger, self.version = Logger().get_logger()
         self.timer = Timer()
         self.dataloader = DataLoader()
         self.preprocessor = Preprocessor()
-        self.estimator = Estimator(self.logger, self.version)
+        self.estimator = Estimator(self.config, self.logger, self.model, self.version)
 
-        self.logger.info(f'debug mode: {parser["debug"]}')
         self.nrows = None
         if self.debug:
             self.nrows = 100000
+
+        for k, v in self.parser.items():
+            self.logger.info(f"{k}: {v}")
 
     def run(self):
         try:

@@ -11,30 +11,10 @@ from sklearn.linear_model import Ridge, LogisticRegression as LR
 from sklearn.metrics import mean_absolute_error as mae
 from sklearn.metrics import mean_squared_error as mse
 from sklearn.metrics import roc_auc_score as auc
-from typing import Any, Generator, Tuple
+from typing import Generator, Tuple
 import xgboost as xgb
 
-
-from .const import (
-    LGB_PARAMS,
-    LGB_PARAMS_DEBUG,
-    CB_PARAMS,
-    CB_PARAMS_DEBUG,
-    ES_ROUNDS,
-    VERBOSE,
-    CAT_FEATURES,
-    OBJECTIVE,
-    N_FOLDS,
-    KFOLD_METHOD,
-    IMPORTANCE_PREFIX,
-    STRATIFIED_COL,
-    GROUP_COL,
-    XGB_PARAMS,
-    LINEAR_PARAMS,
-    NN_PARAMS,
-    MODEL_TYPE,
-    TARGET_ENCODING_COLUMNS,
-)
+from .utils import load_yaml
 
 
 def AUC(y_true, y_pred):
@@ -49,69 +29,25 @@ def RMSE(y_true, y_pred):
     return round(mse(y_true, y_pred) ** 0.5, 6)
 
 
-class ModelParameter:
-    def __init__(
-        self,
-        debug_mode=False,
-        lgb_params=LGB_PARAMS,
-        cb_params=CB_PARAMS,
-        xgb_params=XGB_PARAMS,
-        linear_params=LINEAR_PARAMS,
-        nn_params=NN_PARAMS,
-        es_rounds=ES_ROUNDS,
-        verbose=VERBOSE,
-        cat_features=CAT_FEATURES,
-        objective=OBJECTIVE,
-        model_type=MODEL_TYPE,
-        n_folds=N_FOLDS,
-        kfold_method=KFOLD_METHOD,
-        target_encoding_columns=TARGET_ENCODING_COLUMNS,
-    ):
-        self.lgb_params = lgb_params
-        self.cb_params = cb_params
-        self.xgb_params = xgb_params
-        self.linear_params = linear_params
-        self.nn_params = nn_params
-        if debug_mode:
-            self.lgb_params = LGB_PARAMS_DEBUG
-            self.cb_params = CB_PARAMS_DEBUG
-        self.early_stopping_rounds = es_rounds
-        self.verbose = verbose
-        self.cat_features = cat_features
-        self.objective = objective
-        self.model_type = model_type
-        self.n_folds = n_folds
-        self.kfold_method = kfold_method
-        self.target_encoding_columns = target_encoding_columns
-
-
 class BaseEstimator:
-    def __init__(self, parameter, logger, version):
-        self.lgb_params = parameter.lgb_params
-        self.cb_params = parameter.cb_params
-        self.xgb_params = parameter.xgb_params
-        self.linear_params = parameter.linear_params
-        self.nn_params = parameter.nn_params
-        self.es_rounds = parameter.early_stopping_rounds
-        self.verbose = parameter.verbose
-        self.cat_features = parameter.cat_features
-        self.objective = parameter.objective
-        self.model_type = parameter.model_type
-        self.n_folds = parameter.n_folds
-        self.kfold_method = parameter.kfold_method
-        self.target_encoding_columns = parameter.target_encoding_columns
-        self.kfolds = ""
-        self.model = None
-        self.models = []
+    def __init__(self, config, logger, model_type, version):
+        self.config = config
+        self.logger = logger
+        self.model_type = model_type
+        self.version = version
+        self.kfold_method = self.config["parameter"]["common"]["kfold_method"]
+        self.kfold_number = self.config["parameter"]["common"]["kfold_number"]
+        self.stratified_column = self.config["column"]["stratified"]
+        self.group_column = self.config["column"]["group"]
+        self.importance = self.config["path"]["importance"]
+
+        self.cat_features = []
         self.tr_idxs = []
         self.val_idxs = []
-        self.pred_valid = None
-        self.pred_test = None
-        self.feature_names = []
-        self.logger = logger
-        self.version = version
         self.fill_values = {}
-        self.encoders = []
+        self.model = None
+        self.pred_valid = np.zeros(0)
+        self.pred_test = np.zeros(0)
 
     def fit_(self):
         raise NotImplementedError
@@ -120,39 +56,39 @@ class BaseEstimator:
         raise NotImplementedError
 
     def evaluate_(self, y_true, y_pred):
-        if self.objective == "clf":
+        if self.config["parameter"]["common"]["objective"] == "clf":
             return AUC(y_true, y_pred)
-        elif self.objective == "reg":
+        elif self.config["parameter"]["common"]["objective"] == "reg":
             return RMSE(y_true, y_pred)
+        else:
+            raise Exception("[Error]: paramater objective must be 'clf' or 'reg'")
 
     def generate_kfold(
         self, X: pd.DataFrame, y: np.array, shuffle: bool = True
     ) -> Tuple[Generator, pd.DataFrame]:
-        self.logger.info(f"n_folds: {self.n_folds}")
-        self.logger.info(f"kfold_method: {self.kfold_method}")
         if self.kfold_method == "normal":
-            self.kfolds = KFold(self.n_folds, shuffle=shuffle, random_state=42)
+            self.kfolds = KFold(self.kfold_number, shuffle=shuffle, random_state=42)
             kfold_generator = self.kfolds.split(X, y)
         elif self.kfold_method == "stratified":
-            self.logger.info(f"stratified column: {STRATIFIED_COL}")
-            self.kfolds = StratifiedKFold(self.n_folds, shuffle=shuffle, random_state=42)
+            self.logger.info(f'stratified column: {self.stratified_column}')
+            self.kfolds = StratifiedKFold(self.kfold_number, shuffle=shuffle, random_state=42)
             kfold_generator = self.kfolds.split(X, y)
-            if STRATIFIED_COL in X.columns:
-                X.drop(STRATIFIED_COL, axis=1, inplace=True)
+            if self.stratified_column in X.columns:
+                X.drop(self.stratified_column, axis=1, inplace=True)
         elif self.kfold_method == "group":
-            self.logger.info(f"group column: {GROUP_COL}")
-            self.kfolds = GroupKFold(self.n_folds)
-            kfold_generator = self.kfolds.split(X, y, groups=X[GROUP_COL])
-            if GROUP_COL in X.columns:
-                X.drop(GROUP_COL, axis=1, inplace=True)
+            self.logger.info(f'group column: {self.group_column}')
+            self.kfolds = GroupKFold(self.kfold_number)
+            kfold_generator = self.kfolds.split(X, y, groups=X[self.group_column])
+            if self.group_column in X.columns:
+                X.drop(self.group_column, axis=1, inplace=True)
         else:
             raise TypeError(
                 "generate_kfold required 'kfold_method' must be one of ['normal', 'stratified', 'group']"
             )
         return kfold_generator, X
 
-    def kfold_fit(self, X: pd.DataFrame, y: np.array) -> None:
-        self.cat_features = [cat_feature for cat_feature in self.cat_features if cat_feature in X.columns]
+    def kfold_fit(self, X: pd.DataFrame, y: np.array, cat_features: list = []) -> None:
+        self.cat_features = cat_features
         kfold_generator, X = self.generate_kfold(X, y, shuffle=True)
         valid_scores = []
         for fold_idx, (tr_idx, val_idx) in enumerate(kfold_generator):
@@ -160,25 +96,20 @@ class BaseEstimator:
             self.val_idxs.append(val_idx)
             X_train, X_valid = X.iloc[tr_idx, :], X.iloc[val_idx, :]
             y_train, y_valid = y[tr_idx], y[val_idx]
-            if len(self.target_encoding_columns) > 0:
-                print(f"Process target_encoding_columns: {self.target_encoding_columns}")
-                X_train["accuracy"] = y_train
-                te = TargetEncoder()
-                X_train = te.process(X_train, self.target_encoding_columns, is_train=True, target="accuracy", drop=False)
-                X_valid = te.process(X_valid, self.target_encoding_columns, is_train=False, target=None, drop=False)
-                X_train.drop(["accuracy"], axis=1, inplace=True)
-                self.encoders.append(te)
             if self.model_type in ["linear", "nn"]:
                 self.fill_values = X_train.mode().iloc[0].to_dict()
                 X_train.fillna(self.fill_values, inplace=True)
                 X_valid.fillna(self.fill_values, inplace=True)
+            self.features = X_train.columns.tolist()
             print(X_train.shape, y_train.shape, X_valid.shape, y_valid.shape)
+
             self.fit_(X_train, y_train, X_valid, y_valid)
             print(self.model)
             valid_score = self.evaluate_(y_valid, self.predict_(X_valid))
             valid_scores.append(valid_score)
             self.logger.info(f"fold {fold_idx+1} valid score: {valid_score}")
             del X_train, y_train, X_valid, y_valid
+            gc.collect()
         self.logger.info(f"\nmean valid score: {np.mean(valid_scores)}")
 
     def kfold_predict(
@@ -186,38 +117,34 @@ class BaseEstimator:
     ) -> None:
         if X_train is not None:
             self.pred_valid = np.zeros((len(X_train)))
+            if self.kfold_method == "group":
+                X_train.drop(self.group_column, axis=1, inplace=True)
         if X_test is not None:
             self.pred_test = np.zeros((len(X_test)))
             if self.kfold_method == "group":
-                X_test.drop(GROUP_COL, axis=1, inplace=True)
+                X_test.drop(self.group_column, axis=1, inplace=True)
+
         for fold_idx in range(self.kfolds.n_splits):
             val_idx = self.val_idxs[fold_idx]
             self.model = self.models[fold_idx]
-
             if X_train is not None:
-                X_tr = X_train.iloc[val_idx, :]
-                if len(self.target_encoding_columns) > 0:
-                    X_tr = self.encoders[fold_idx].process(X_tr, self.target_encoding_columns, is_train=False, target=None, drop=False)
+                X_val = X_train.iloc[val_idx, :]
                 if self.model_type in ["linear", "nn"]:
-                    X_tr.fillna(self.fill_values, inplace=True)
-                valid_pred = self.predict_(X_tr.values)
-                self.pred_valid[val_idx] = valid_pred
+                    X_val.fillna(self.fill_values, inplace=True)
+                self.pred_valid[val_idx] = self.predict_(X_val.values)
             if X_test is not None:
-                X_te = X_test.copy()
-                if len(self.target_encoding_columns) > 0:
-                    X_te = self.encoders[fold_idx].process(X_te, self.target_encoding_columns, is_train=False, target=None, drop=False)
                 if self.model_type in ["linear", "nn"]:
-                    X_te.fillna(self.fill_values, inplace=True)
-                test_pred = self.predict_(X_te.values)
-                self.pred_test += test_pred / self.kfolds.n_splits
+                    X_test.fillna(self.fill_values, inplace=True)
+                self.pred_test += self.predict_(X_test.values) / self.kfold_number
 
     def kfold_feature_importance(self, top_features: int = 60) -> pd.DataFrame:
         df_fi = pd.DataFrame()
         for i, model in enumerate(self.models):
-            features = self.feature_names.copy()
             if self.model_type == "cb":
+                features = self.model.get_feature_names()
                 importances = model.get_feature_importance(type="FeatureImportance")
             else:
+                features = self.model.booster_.feature_name()
                 importances = model.booster_.feature_importance(importance_type="gain")
             df_tmp = pd.DataFrame(
                 {"feature": features, f"importance_{i}": importances}
@@ -227,6 +154,7 @@ class BaseEstimator:
             else:
                 df_fi = df_fi.join(df_tmp, how="left", on="feature")
             del df_tmp
+            gc.collect()
         df_fi["importance"] = df_fi.values.mean(axis=1)
         df_fi.sort_values("importance", ascending=False, inplace=True)
         df_fi.reset_index(inplace=True)
@@ -241,9 +169,8 @@ class BaseEstimator:
         sns.barplot(y=df_fi["feature"], x=df_fi["importance"])
         plt.tight_layout()
         if save is True:
-            plt.savefig(
-                f"{IMPORTANCE_PREFIX}/importance_{self.model_type}_{self.version}.png", dpi=150
-            )
+            filepath = f"{self.importance}/importance_{self.model_type}_{self.version}.png"
+            plt.savefig(filepath, dpi=150)
         else:
             plt.show()
         plt.close()
