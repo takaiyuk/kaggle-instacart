@@ -289,7 +289,7 @@ class BaseEstimator:
             self.kfold_predict(X_test=X_test)
 
 
-class CatboostEstimator(BaseEstimator):
+class AbstractCatboostEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
         self.params = self.config["parameters"]["cb"]
@@ -329,7 +329,7 @@ class CatboostEstimator(BaseEstimator):
             return self.model.predict(X)
 
 
-class LightgbmEstimator(BaseEstimator):
+class AbstractLightgbmEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
         self.params = self.config["parameters"]["lgb"]
@@ -369,7 +369,7 @@ class LightgbmEstimator(BaseEstimator):
             return self.model.predict(X)
 
 
-class LinearEstimator(BaseEstimator):
+class AbstractLinearEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
         self.params = self.config["parameters"]["linear"]
@@ -398,13 +398,13 @@ class LinearEstimator(BaseEstimator):
             return self.model.predict(X)
 
 
-class NeuralnetEstimator(BaseEstimator):
+class AbstractNeuralnetEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
         self.params = self.config["parameters"]["nn"]
 
 
-class XgboostEstimator(BaseEstimator):
+class AbstractXgboostEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
 

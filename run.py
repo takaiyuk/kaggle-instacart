@@ -13,7 +13,14 @@ warnings.filterwarnings("ignore")
 from src.utils import Logger, Timer, load_yaml, mkdir
 from src.dataloader import DataLoader
 from src.preprocessor import Preprocessor
-from src.estimator import Estimator
+from src.estimator import (
+    BaseEstimator,
+    CatboostEstimator,
+    LightgbmEstimator,
+    LinearEstimator,
+    NeuralnetEstimator,
+    XgboostEstimator,
+)
 
 parser = argparse.ArgumentParser(description="argparse for run.py")
 parser.add_argument("--debug", action="store_true", help="debug mode")
@@ -38,7 +45,30 @@ class Runner:
         self.timer = Timer()
         self.dataloader = DataLoader(self.config)
         self.preprocessor = Preprocessor()
-        self.estimator = Estimator(self.config, self.logger, self.model, self.version)
+        if self.model == "cb":
+            self.estimator = CatboostEstimator(
+                self.config, self.logger, self.model, self.version
+            )
+        elif self.model == "lgb":
+            self.estimator = LightgbmEstimator(
+                self.config, self.logger, self.model, self.version
+            )
+        elif self.model == "linear":
+            self.estimator = LinearEstimator(
+                self.config, self.logger, self.model, self.version
+            )
+        elif self.model == "nn":
+            self.estimator = NeuralnetEstimator(
+                self.config, self.logger, self.model, self.version
+            )
+        elif self.model == "xgb":
+            self.estimator = XgboostEstimator(
+                self.config, self.logger, self.model, self.version
+            )
+        else:
+            raise Exception(
+                f'model type must be one of ["lgb", "cb", "xgb", "nn", "linear"]'
+            )
 
         self.nrows = None
         if self.debug:
