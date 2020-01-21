@@ -8,6 +8,7 @@ path:
     importance: "./importance"
     logs: "./logs"
     model: "./model"
+    preprocess: "./input/preprocess"
     submit: "./submit"
 column:
     target: ""

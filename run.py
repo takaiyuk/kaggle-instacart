@@ -1,5 +1,6 @@
 import argparse
 import gc
+import joblib
 import os
 import pandas as pd
 import traceback
@@ -53,28 +54,30 @@ class Runner:
                 test = self.dataloader.load_test()
 
             with self.timer.timer("Process Preprocessor"):
-                self.preprocessor.preprocess(train, test, is_train=True)
+                train = self.preprocessor.preprocess(train, is_train=True)
+                joblib.dump(train, "./input/preprocess/train.jbl", compress=3)
+                del train
+                gc.collect()
+                test = self.preprocessor.preprocess(test, is_train=True)
+                joblib.dump(test, "./input/preprocess/test.jbl", compress=3)
+                del test
+                gc.collect()
 
-            with self.timer.timer("Process Estimator - training"):
-                train = self.dataloader.load_joblib("train.jbl")
-                self.estimator.kfold_fit(
-                    train.drop(self.config["column"]["target"], axis=1),
-                    train[self.config["column"]["target"]],
-                )
-                self.estimator.plot_feature_importance()
+            with self.timer.timer("Process Estimator"):
+                train = self.dataloader.load_joblib("./input/preprocess/train.jbl")
+                self.estimator.estimate(train, is_train=True)
                 del train
                 gc.collect()
 
             with self.timer.timer("Process Estimator - prediction"):
-                X_test = self.dataloader.load_joblib("test.jbl")
-                self.estimator.kfold_predict(X_test=X_test)
-                del X_test
+                test = self.dataloader.load_joblib("./input/preprocess/test.jbl")
+                self.estimator.estimate(test, is_train=False)
+                del test
                 gc.collect()
-                pred_test = self.estimator.pred_test
 
             with self.utils.timer("Process Submission"):
                 submit = self.loader.load_sample_submission()
-                submit[self.config["column"]["target"]] = pred_test
+                submit[self.config["column"]["target"]] = self.estimator.pred_test
                 submit.to_csv(
                     f'{self.config["path"]["submit"]}/submission_{self.version}.csv'
                 )
