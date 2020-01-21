@@ -1,5 +1,6 @@
 mode:
     project: ""
+    objective: "reg"
 path:
     train: "../input/project/train.csv"
     test: "../input/project/test.csv"
@@ -11,7 +12,10 @@ path:
 column:
     target: ""
     index: None
+    key: None
     timestamp: ""
+    categorical: []
+    numerical: []
     kfold_stratified: ""
     kfold_group: ""
 parameter:
@@ -46,3 +50,9 @@ parameter:
         task_type: "CPU"
         od_type: "Iter"
         use_best_model: True
+    xgb:
+        max_depth: 7
+    nn:
+        dropout: 0.25
+    linear:
+        C: 0.1

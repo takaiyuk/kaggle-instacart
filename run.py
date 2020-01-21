@@ -1,5 +1,6 @@
 import argparse
 import gc
+import os
 import pandas as pd
 import traceback
 import sys
@@ -26,15 +27,15 @@ p = vars(parser.parse_args())
 
 
 class Runner:
-    def __init__(self, parser):
+    def __init__(self, parser, config):
         self.parser = parser
-        self.config = load_yaml()
+        self.config = config
         self.debug = parser["debug"]
         self.model = parser["model"]
 
-        self.logger, self.version = Logger().get_logger()
+        self.logger, self.version = Logger(self.config["path"]["logs"]).get_logger()
         self.timer = Timer()
-        self.dataloader = DataLoader()
+        self.dataloader = DataLoader(self.config)
         self.preprocessor = Preprocessor()
         self.estimator = Estimator(self.config, self.logger, self.model, self.version)
 
@@ -86,4 +87,9 @@ class Runner:
 
 
 if __name__ == "__main__":
-    Runner(p).run()
+    config = load_yaml()
+    for k, v in config["path"].items():
+        # path が file ではなく directory の場合 mkdir する
+        if os.path.splitext(os.path.basename(v))[1] == "":
+            mkdir(v)
+    Runner(p, config).run()

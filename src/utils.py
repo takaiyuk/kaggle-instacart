@@ -8,8 +8,8 @@ import yaml
 
 
 class Logger:
-    def __init__(self):
-        self.log_dir = load_yaml("./config.yml")["path"]["logs"]
+    def __init__(self, log_dir="./logs"):
+        self.log_dir = log_dir
         self.version = None
 
     def _make_new_version(self):

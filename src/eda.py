@@ -26,7 +26,7 @@ class DataAnalyzer:
             df_num["null_rate"] = df_num["#null"] / len(self.train)
             df_num["#uniques"] = self.train.loc[:, self.num_cols].nunique().values
             df_num["nuniques_rate"] = df_num["#uniques"] / len(self.train)
-            
+
             df_cat = pd.DataFrame(index=self.cat_cols)
             df_cat["#null"] = self.train.loc[:, self.cat_cols].isnull().sum().values
             df_cat["null_rate"] = df_cat["#null"] / len(self.train)
@@ -38,7 +38,7 @@ class DataAnalyzer:
             df_num["null_rate"] = df_num["#null"] / len(self.test)
             df_num["#uniques"] = self.test.loc[:, self.num_cols].nunique().values
             df_num["nuniques_rate"] = df_num["#uniques"] / len(self.test)
-            
+
             df_cat = pd.DataFrame(index=self.cat_cols)
             df_cat["#null"] = self.test.loc[:, self.cat_cols].isnull().sum().values
             df_cat["null_rate"] = df_cat["#null"] / len(self.test)
@@ -71,7 +71,7 @@ class DataAnalyzer:
         return dfs
 
     def check_feature_target(self) -> pd.Series:
-        return self.train.loc[:, self.num_cols+[TARGET_COLUMN]].corr()[TARGET_COLUMN]
+        return self.train.loc[:, self.num_cols + [TARGET_COLUMN]].corr()[TARGET_COLUMN]
 
     def check_categorical_target(self) -> dict:
         dfs = {}

@@ -13,13 +13,15 @@ class NullImportance:
         self.actual_imp_df = pd.DataFrame()
         self.null_imp_df = pd.DataFrame()
 
-    def _fit(self, X: pd.DataFrame, y: np.array, is_shuffle: bool) -> None:
+    def _fit(
+        self, X: pd.DataFrame, y: np.array, random_seed: int, is_shuffle: bool
+    ) -> None:
         if is_shuffle:
             y = np.random.permutation(y)
         if self.objective == "reg":
-            self.clf = lgb.LGBMRegressor(random_state=42)
+            self.clf = lgb.LGBMRegressor(random_state=random_seed)
         else:
-            self.clf = lgb.LGBMClassifier(random_state=42)
+            self.clf = lgb.LGBMClassifier(random_state=random_seed)
         self.clf.fit(X, y)
 
     def _feature_importance(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -29,19 +31,24 @@ class NullImportance:
         imp_df.sort_values("importance", ascending=False, inplace=True)
         return imp_df
 
-    def get_feature_importances(
-        self, X: pd.DataFrame, y: np.array, is_shuffle: bool = False
+    def _get_feature_importances(
+        self,
+        X: pd.DataFrame,
+        y: np.array,
+        random_seed: int = 42,
+        is_shuffle: bool = False,
     ) -> pd.DataFrame:
-        self._fit(X, y, is_shuffle)
+        self._fit(X, y, random_seed, is_shuffle)
         return self._feature_importance(X)
 
-    def get_null_importance(
+    def _get_null_importance(
         self, X: pd.DataFrame, y: np.array, is_shuffle: bool = True
     ) -> pd.DataFrame:
         N_RUNS = 100
         null_imp_df = pd.DataFrame()
         for i in tqdm(range(N_RUNS)):
-            imp_df = self.get_feature_importances(X, y, is_shuffle)
+            random_seed = i
+            imp_df = self._get_feature_importances(X, y, random_seed, is_shuffle)
             imp_df["run"] = i + 1
             null_imp_df = pd.concat([null_imp_df, imp_df], ignore_index=True)
         return null_imp_df
@@ -51,9 +58,9 @@ class NullImportance:
     ) -> list:
         # 閾値を超える特徴量を取得
         if len(self.actual_imp_df) == 0:
-            self.actual_imp_df = self.get_feature_importances(X, y)
+            self.actual_imp_df = self._get_feature_importances(X, y)
         if len(self.null_imp_df) == 0:
-            self.null_imp_df = self.get_null_importance(X, y)
+            self.null_imp_df = self._get_null_importance(X, y)
 
         imp_features = []
         for feature in self.actual_imp_df["feature"]:
@@ -100,7 +107,7 @@ class NullImportance:
             self.actual_imp_df = self.get_feature_importances(X, y)
         if len(self.null_imp_df) == 0:
             self.null_imp_df = self.get_null_importance(X, y)
-        for feature in self.actual_imp_df["feature"][:5]:
+        for feature in self.actual_imp_df["feature"]:
             self._display_distribution(feature)
 
 

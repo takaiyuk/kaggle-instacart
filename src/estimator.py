@@ -40,12 +40,14 @@ class BaseEstimator:
         self.stratified_column = self.config["column"]["stratified"]
         self.group_column = self.config["column"]["group"]
         self.importance = self.config["path"]["importance"]
+        self.objective = self.config["model"]["objective"]
 
         self.cat_features = []
         self.tr_idxs = []
         self.val_idxs = []
         self.fill_values = {}
         self.model = None
+        self.models = []
         self.pred_valid = np.zeros(0)
         self.pred_test = np.zeros(0)
 
@@ -70,13 +72,15 @@ class BaseEstimator:
             self.kfolds = KFold(self.kfold_number, shuffle=shuffle, random_state=42)
             kfold_generator = self.kfolds.split(X, y)
         elif self.kfold_method == "stratified":
-            self.logger.info(f'stratified column: {self.stratified_column}')
-            self.kfolds = StratifiedKFold(self.kfold_number, shuffle=shuffle, random_state=42)
+            self.logger.info(f"Stratified Column: {self.stratified_column}")
+            self.kfolds = StratifiedKFold(
+                self.kfold_number, shuffle=shuffle, random_state=42
+            )
             kfold_generator = self.kfolds.split(X, y)
             if self.stratified_column in X.columns:
                 X.drop(self.stratified_column, axis=1, inplace=True)
         elif self.kfold_method == "group":
-            self.logger.info(f'group column: {self.group_column}')
+            self.logger.info(f"Group Column: {self.group_column}")
             self.kfolds = GroupKFold(self.kfold_number)
             kfold_generator = self.kfolds.split(X, y, groups=X[self.group_column])
             if self.group_column in X.columns:
@@ -137,7 +141,7 @@ class BaseEstimator:
                     X_test.fillna(self.fill_values, inplace=True)
                 self.pred_test += self.predict_(X_test.values) / self.kfold_number
 
-    def kfold_feature_importance(self, top_features: int = 60) -> pd.DataFrame:
+    def _kfold_feature_importance(self, top_features: int = 60) -> pd.DataFrame:
         df_fi = pd.DataFrame()
         for i, model in enumerate(self.models):
             if self.model_type == "cb":
@@ -163,14 +167,16 @@ class BaseEstimator:
         return df_fi
 
     def plot_feature_importance(self, save: bool = True) -> None:
-        df_fi = self.kfold_feature_importance()
+        df_fi = self._kfold_feature_importance()
         sns.set()
         plt.figure(figsize=(6, 10))
         sns.barplot(y=df_fi["feature"], x=df_fi["importance"])
         plt.tight_layout()
         if save is True:
-            filepath = f"{self.importance}/importance_{self.model_type}_{self.version}.png"
-            plt.savefig(filepath, dpi=150)
+            plt.savefig(
+                f"{self.importance}/importance_{self.model_type}_{self.version}.png",
+                dpi=150,
+            )
         else:
             plt.show()
         plt.close()
@@ -178,8 +184,9 @@ class BaseEstimator:
 
 
 class CatboostEstimator(BaseEstimator):
-    def __init__(self, parameter, logger, version):
-        super().__init__(parameter, logger, version)
+    def __init__(self, config, logger, model_type, version):
+        super().__init__(config, logger, model_type, version)
+        self.params = self.config["parameters"]["cb"]
 
     def fit_(
         self,
@@ -189,19 +196,19 @@ class CatboostEstimator(BaseEstimator):
         y_eval: np.array = None,
     ) -> None:
         self.logger.info(f"Model Type: {self.model_type}")
-        self.logger.info(f"Catboost Params: {self.cb_params}")
+        self.logger.info(f"Catboost Params: {self.params}")
         self.feature_names = X_train.columns.tolist()
         if self.objective == "clf":
-            self.model = cb.CatBoostClassifier(**self.cb_params)
+            self.model = cb.CatBoostClassifier(**self.params)
         elif self.objective == "reg":
-            self.model = cb.CatBoostRegressor(**self.cb_params)
+            self.model = cb.CatBoostRegressor(**self.params)
         if X_eval is not None:
             self.model.fit(
                 X_train,
                 y_train,
                 eval_set=[(X_train, y_train), (X_eval, y_eval)],
-                early_stopping_rounds=self.es_rounds,
-                verbose=self.verbose,
+                early_stopping_rounds=self.params["early_stopping_rounds"],
+                verbose=self.params["verbose"],
                 cat_features=self.cat_features,
             )
             self.logger.info(f"Best Iteration: {self.model.best_iteration_}")
@@ -217,8 +224,9 @@ class CatboostEstimator(BaseEstimator):
 
 
 class LightgbmEstimator(BaseEstimator):
-    def __init__(self, parameter, logger, version):
-        super().__init__(parameter, logger, version)
+    def __init__(self, config, logger, model_type, version):
+        super().__init__(config, logger, model_type, version)
+        self.params = self.config["parameters"]["lgb"]
 
     def fit_(
         self,
@@ -228,19 +236,19 @@ class LightgbmEstimator(BaseEstimator):
         y_eval: np.array = None,
     ) -> None:
         self.logger.info(f"Model Type: {self.model_type}")
-        self.logger.info(f"Lightgbm Params: {self.lgb_params}")
+        self.logger.info(f"Lightgbm Params: {self.params}")
         self.feature_names = X_train.columns.tolist()
         if self.objective == "clf":
-            self.model = lgb.LGBMClassifier(**self.lgb_params)
+            self.model = lgb.LGBMClassifier(**self.params)
         elif self.objective == "reg":
-            self.model = lgb.LGBMRegressor(**self.lgb_params)
+            self.model = lgb.LGBMRegressor(**self.params)
         if X_eval is not None:
             self.model.fit(
                 X_train,
                 y_train,
                 eval_set=[(X_train, y_train), (X_eval, y_eval)],
-                early_stopping_rounds=self.es_rounds,
-                verbose=self.verbose,
+                early_stopping_rounds=self.params["early_stopping_rounds"],
+                verbose=self.params["verbose"],
                 categorical_feature=self.cat_features,
             )
             self.logger.info(f"Best Iteration: {self.model.best_iteration_}")
@@ -256,8 +264,9 @@ class LightgbmEstimator(BaseEstimator):
 
 
 class LinearEstimator(BaseEstimator):
-    def __init__(self, parameter, logger, version):
-        super().__init__(parameter, logger, version)
+    def __init__(self, config, logger, model_type, version):
+        super().__init__(config, logger, model_type, version)
+        self.params = self.config["parameters"]["linear"]
 
     def fit_(
         self,
@@ -267,12 +276,12 @@ class LinearEstimator(BaseEstimator):
         y_eval: np.array = None,
     ) -> None:
         self.logger.info(f"Model Type: {self.model_type}")
-        self.logger.info(f"Linear Params: {self.linear_params}")
+        self.logger.info(f"Linear Params: {self.params}")
         self.feature_names = X_train.columns.tolist()
         if self.objective == "clf":
-            self.model = LR()
+            self.model = LR(**self.params)
         elif self.objective == "reg":
-            self.model = Ridge()
+            self.model = Ridge(**self.params)
         self.model.fit(X_train, y_train)
         self.models.append(self.model)
 
@@ -284,13 +293,14 @@ class LinearEstimator(BaseEstimator):
 
 
 class NeuralnetEstimator(BaseEstimator):
-    def __init__(self, parameter, logger, version):
-        super().__init__(parameter, logger, version)
+    def __init__(self, config, logger, model_type, version):
+        super().__init__(config, logger, model_type, version)
+        self.params = self.config["parameters"]["nn"]
 
 
 class XgboostEstimator(BaseEstimator):
-    def __init__(self, parameter, logger, version):
-        super().__init__(parameter, logger, version)
+    def __init__(self, config, logger, model_type, version):
+        super().__init__(config, logger, model_type, version)
 
     def fit_(
         self,
@@ -300,19 +310,19 @@ class XgboostEstimator(BaseEstimator):
         y_eval: np.array = None,
     ) -> None:
         self.logger.info(f"Model Type: {self.model_type}")
-        self.logger.info(f"Xgboost Params: {self.xgb_params}")
+        self.logger.info(f"Xgboost Params: {self.params}")
         self.feature_names = X_train.columns.tolist()
         if self.objective == "clf":
-            self.model = xgb.XGBClassifier(**self.xgb_params)
+            self.model = xgb.XGBClassifier(**self.params)
         elif self.objective == "reg":
-            self.model = xgb.XGBRegressor(**self.xgb_params)
+            self.model = xgb.XGBRegressor(**self.params)
         if X_eval is not None:
             self.model.fit(
                 X_train,
                 y_train,
                 eval_set=[(X_train, y_train), (X_eval, y_eval)],
-                early_stopping_rounds=self.es_rounds,
-                verbose=self.verbose,
+                early_stopping_rounds=self.params["early_stopping_rounds"],
+                verbose=self.params["verbose"],
             )
             self.logger.info(f"Best Iteration: {self.model.best_iteration}")
         else:
@@ -327,7 +337,9 @@ class XgboostEstimator(BaseEstimator):
 
 
 class Estimator:
-    def __init__(self, model_estimator: BaseEstimator, logger: logging.Loggers, version: int) -> None:
+    def __init__(
+        self, model_estimator: BaseEstimator, logger: logging.Loggers, version: int
+    ) -> None:
         self.selected_columns = []
         self.use_columns = []
         self.selected_features = []
@@ -365,7 +377,12 @@ class Estimator:
             del df
             gc.collect()
 
-            drop_cols = self.X_train.nunique()[self.X_train.nunique() == 1].index.tolist() + self.X_train.isnull().sum()[self.X_train.isnull().sum() == len(self.X_train)].index.tolist()
+            drop_cols = (
+                self.X_train.nunique()[self.X_train.nunique() == 1].index.tolist()
+                + self.X_train.isnull()
+                .sum()[self.X_train.isnull().sum() == len(self.X_train)]
+                .index.tolist()
+            )
             if len(drop_cols) != 0:
                 self.X_train.drop(drop_cols, axis=1, inplace=True)
                 for col in drop_cols:
@@ -374,23 +391,37 @@ class Estimator:
             print(self.X_train.head(1))
 
             with self.utils.timer("Process Train FeatureSelector"):
-                self.selected_features = self.featureselector.select_features(self.X_train.loc[:, self.selected_columns], self.y_train, threshold=NI_THRESHOLD)
+                self.selected_features = self.featureselector.select_features(
+                    self.X_train.loc[:, self.selected_columns],
+                    self.y_train,
+                    threshold=NI_THRESHOLD,
+                )
                 self.logger.info(f"#selected_features: {len(self.selected_features)}")
                 self.logger.info(self.selected_features)
-                if self.estimator.kfold_method == "stratified" and STRATIFIED_COL not in self.selected_features:
+                if (
+                    self.estimator.kfold_method == "stratified"
+                    and STRATIFIED_COL not in self.selected_features
+                ):
                     use_cols = self.selected_features + [STRATIFIED_COL]
-                elif self.estimator.kfold_method == "group" and GROUP_COL not in self.selected_features:
+                elif (
+                    self.estimator.kfold_method == "group"
+                    and GROUP_COL not in self.selected_features
+                ):
                     use_cols = self.selected_features + [GROUP_COL]
                 else:
                     use_cols = self.selected_features
                 self.X_train = self.X_train.loc[:, use_cols]
 
             if self.estimator.model_type in ["linear", "nn"]:
-                self.X_train.loc[:, self.selected_features] = self.scaler.process(self.X_train.loc[:, self.selected_features].values, is_train=True)
+                self.X_train.loc[:, self.selected_features] = self.scaler.process(
+                    self.X_train.loc[:, self.selected_features].values, is_train=True
+                )
 
             self.estimator.kfold_fit(self.X_train, self.y_train)
             self.estimator.kfold_predict(self.X_train)
-            valid_score = self.estimator.evaluate_(self.y_train, self.estimator.pred_valid)
+            valid_score = self.estimator.evaluate_(
+                self.y_train, self.estimator.pred_valid
+            )
             self.logger.info(f"\nvalid_score: {valid_score}")
             if self.estimator.model_type in ["cb", "lgb", "xgb"]:
                 df_fi = self.estimator.plot_feature_importance()
@@ -412,7 +443,9 @@ class Estimator:
             del df
             gc.collect()
             if self.estimator.model_type == "linear":
-                X_test.loc[:, self.selected_features] = self.scaler.process(X_test.loc[:, self.selected_features].values, is_train=False)
+                X_test.loc[:, self.selected_features] = self.scaler.process(
+                    X_test.loc[:, self.selected_features].values, is_train=False
+                )
             print(X_test.shape)
             print(X_test.head(1))
 
