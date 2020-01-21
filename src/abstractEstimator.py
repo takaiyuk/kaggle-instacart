@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import KFold, StratifiedKFold, GroupKFold
 from sklearn.linear_model import Ridge, LogisticRegression as LR
 from sklearn.metrics import mean_absolute_error as mae
@@ -14,7 +15,10 @@ from sklearn.metrics import roc_auc_score as auc
 from typing import Generator, Tuple
 import xgboost as xgb
 
-from .utils import load_yaml
+from .featureselector import NullImportance
+
+
+DROP_COLUMNS = []
 
 
 def AUC(y_true, y_pred):
@@ -35,12 +39,14 @@ class BaseEstimator:
         self.logger = logger
         self.model_type = model_type
         self.version = version
+        self.objective = self.config["model"]["objective"]
         self.kfold_method = self.config["parameter"]["common"]["kfold_method"]
         self.kfold_number = self.config["parameter"]["common"]["kfold_number"]
         self.stratified_column = self.config["column"]["stratified"]
         self.group_column = self.config["column"]["group"]
+        self.target_column = self.config["column"]["target"]
         self.importance = self.config["path"]["importance"]
-        self.objective = self.config["model"]["objective"]
+        self.ni_threshold = self.config["parameter"]["null_importance"]["threshold"]
 
         self.cat_features = []
         self.tr_idxs = []
@@ -50,6 +56,15 @@ class BaseEstimator:
         self.models = []
         self.pred_valid = np.zeros(0)
         self.pred_test = np.zeros(0)
+
+        self.drop_columns = DROP_COLUMNS
+        self.selected_columns = []
+        self.selected_features = []
+        self.X_train = pd.DataFrame()
+        self.y_train = np.zeros(0)
+        self.y_true = np.zeros(0)
+        self.scaler = MyStandardScaler()
+        self.featureselector = NullImportance(self.config["mode"]["objective"])
 
     def fit_(self):
         raise NotImplementedError
@@ -181,6 +196,97 @@ class BaseEstimator:
             plt.show()
         plt.close()
         return df_fi
+
+    def _select_columns(self, df):
+        self.selected_columns = df.drop(self.drop_columns, axis=1).columns.tolist()
+        self.logger.info(f"#selected_columns: {len(self.selected_columns)}")
+        print(self.selected_columns)
+
+    def estimate(self, df: pd.DataFrame, is_train: bool) -> None:
+        if is_train:
+            self._select_columns(df)
+            if self.kfold_method == "stratified":
+                use_cols = self.selected_columns + [self.stratified_column]
+            elif self.kfold_method == "group":
+                use_cols = self.selected_columns + [self.group_column]
+            else:
+                use_cols = self.selected_columns
+            self.X_train, self.y_train = (
+                df.loc[:, use_cols],
+                df[self.target_column].values,
+            )
+            self.y_true = np.array(df[self.target_column].values, dtype=int)
+            del df
+            gc.collect()
+
+            unused_columns = (
+                self.X_train.nunique()[self.X_train.nunique() == 1].index.tolist()
+                + self.X_train.isnull()
+                .sum()[self.X_train.isnull().sum() == len(self.X_train)]
+                .index.tolist()
+            )
+            if len(unused_columns) != 0:
+                self.X_train.drop(unused_columns, axis=1, inplace=True)
+                for col in unused_columns:
+                    self.selected_columns.remove(col)
+            print(self.X_train.shape)
+            print(self.X_train.head(1))
+
+            with self.utils.timer("Process Train FeatureSelector"):
+                self.selected_features = self.featureselector.select_features(
+                    self.X_train.loc[:, self.selected_columns],
+                    self.y_train,
+                    threshold=self.ni_threshold,
+                )
+                self.logger.info(f"#selected_features: {len(self.selected_features)}")
+                self.logger.info(self.selected_features)
+                if (
+                    self.kfold_method == "stratified"
+                    and self.stratified_column not in self.selected_features
+                ):
+                    use_cols = self.selected_features + [self.stratified_column]
+                elif (
+                    self.kfold_method == "group"
+                    and self.group_column not in self.selected_features
+                ):
+                    use_cols = self.selected_features + [self.group_column]
+                else:
+                    use_cols = self.selected_features
+                self.X_train = self.X_train.loc[:, use_cols]
+
+            if self.model_type in ["linear", "nn"]:
+                self.X_train.loc[:, self.selected_features] = self.scaler.process(
+                    self.X_train.loc[:, self.selected_features].values, is_train=True
+                )
+            self.kfold_fit(self.X_train, self.y_train)
+            self.kfold_predict(self.X_train)
+            valid_score = self.evaluate_(self.y_train, self.pred_valid)
+            self.logger.info(f"\nvalid_score: {valid_score}")
+            if self.model_type in ["cb", "lgb", "xgb"]:
+                df_fi = self.plot_feature_importance()
+                self.logger.info(df_fi.loc[:25, ["feature", "importance"]])
+
+        else:
+            if self.kfold_method == "stratified":
+                use_cols = self.selected_features + [self.stratified_column]
+            elif self.kfold_method == "group":
+                use_cols = self.selected_features + [self.group_column]
+            else:
+                use_cols = self.selected_features
+            if self.target_column in df.columns:
+                df.drop(self.target_column, axis=1, inplace=True)
+            X_test = df.loc[:, use_cols]
+            self.test_installation_id = df["installation_id"].values
+            del df
+            gc.collect()
+            if self.model_type == "linear":
+                X_test.loc[:, self.selected_features] = self.scaler.process(
+                    X_test.loc[:, self.selected_features].values, is_train=False
+                )
+            print(X_test.shape)
+            print(X_test.head(1))
+
+            self.kfold_predict(X_test=X_test)
 
 
 class CatboostEstimator(BaseEstimator):
@@ -336,117 +442,17 @@ class XgboostEstimator(BaseEstimator):
             return self.model.predict(X)
 
 
-class Estimator:
-    def __init__(
-        self, model_estimator: BaseEstimator, logger: logging.Loggers, version: int
-    ) -> None:
-        self.selected_columns = []
-        self.use_columns = []
-        self.selected_features = []
-        self.X_train = pd.DataFrame()
-        self.y_train = np.zeros(0)
-        self.y_true = np.zeros(0)
-        self.test_installation_id = np.zeros(0)
-        self.logger = logger
-        self.version = version
-        self.estimator = model_estimator
-        self.utils = Utils()
-        self.scaler = MyStandardScaler()
-        self.featureselector = NullImportance("reg")
+class MyStandardScaler:
+    def __init__(self):
+        self.scaler = StandardScaler()
 
-    def _select_columns(self, df):
-        drop_cols = ["accuracy", "accuracy_group", "installation_id"]
-        self.selected_columns = df.drop(drop_cols, axis=1).columns.tolist()
-        self.logger.info(f"#selected_columns: {len(self.selected_columns)}")
-        print(self.selected_columns)
+    def fit_(self, X: np.array) -> np.array:
+        self.scaler.fit(X)
 
-    def estimate(self, df: pd.DataFrame, is_train: bool) -> None:
+    def transform_(self, X: np.array) -> np.array:
+        return self.scaler.transform(X)
+
+    def process(self, X: np.array, is_train: bool) -> np.array:
         if is_train:
-            self._select_columns(df)
-            if self.estimator.kfold_method == "stratified":
-                use_cols = self.selected_columns + [STRATIFIED_COL]
-            elif self.estimator.kfold_method == "group":
-                use_cols = self.selected_columns + [GROUP_COL]
-            else:
-                use_cols = self.selected_columns
-            self.X_train, self.y_train = (
-                df.loc[:, use_cols],
-                df[TARGET_COL].values,
-            )
-            self.y_true = np.array(df["accuracy_group"].values, dtype=int)
-            del df
-            gc.collect()
-
-            drop_cols = (
-                self.X_train.nunique()[self.X_train.nunique() == 1].index.tolist()
-                + self.X_train.isnull()
-                .sum()[self.X_train.isnull().sum() == len(self.X_train)]
-                .index.tolist()
-            )
-            if len(drop_cols) != 0:
-                self.X_train.drop(drop_cols, axis=1, inplace=True)
-                for col in drop_cols:
-                    self.selected_columns.remove(col)
-            print(self.X_train.shape)
-            print(self.X_train.head(1))
-
-            with self.utils.timer("Process Train FeatureSelector"):
-                self.selected_features = self.featureselector.select_features(
-                    self.X_train.loc[:, self.selected_columns],
-                    self.y_train,
-                    threshold=NI_THRESHOLD,
-                )
-                self.logger.info(f"#selected_features: {len(self.selected_features)}")
-                self.logger.info(self.selected_features)
-                if (
-                    self.estimator.kfold_method == "stratified"
-                    and STRATIFIED_COL not in self.selected_features
-                ):
-                    use_cols = self.selected_features + [STRATIFIED_COL]
-                elif (
-                    self.estimator.kfold_method == "group"
-                    and GROUP_COL not in self.selected_features
-                ):
-                    use_cols = self.selected_features + [GROUP_COL]
-                else:
-                    use_cols = self.selected_features
-                self.X_train = self.X_train.loc[:, use_cols]
-
-            if self.estimator.model_type in ["linear", "nn"]:
-                self.X_train.loc[:, self.selected_features] = self.scaler.process(
-                    self.X_train.loc[:, self.selected_features].values, is_train=True
-                )
-
-            self.estimator.kfold_fit(self.X_train, self.y_train)
-            self.estimator.kfold_predict(self.X_train)
-            valid_score = self.estimator.evaluate_(
-                self.y_train, self.estimator.pred_valid
-            )
-            self.logger.info(f"\nvalid_score: {valid_score}")
-            if self.estimator.model_type in ["cb", "lgb", "xgb"]:
-                df_fi = self.estimator.plot_feature_importance()
-                self.logger.info(df_fi.loc[:25, ["feature", "importance"]])
-            del self.X_train
-            gc.collect()
-
-        else:
-            if self.estimator.kfold_method == "stratified":
-                use_cols = self.selected_features + [STRATIFIED_COL]
-            elif self.estimator.kfold_method == "group":
-                use_cols = self.selected_features + [GROUP_COL]
-            else:
-                use_cols = self.selected_features
-            if TARGET_COL in df.columns:
-                df.drop(TARGET_COL, axis=1, inplace=True)
-            X_test = df.loc[:, use_cols]
-            self.test_installation_id = df["installation_id"].values
-            del df
-            gc.collect()
-            if self.estimator.model_type == "linear":
-                X_test.loc[:, self.selected_features] = self.scaler.process(
-                    X_test.loc[:, self.selected_features].values, is_train=False
-                )
-            print(X_test.shape)
-            print(X_test.head(1))
-
-            self.estimator.kfold_predict(X_test=X_test)
+            self.fit_(X)
+        return self.transform_(X)

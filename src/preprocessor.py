@@ -1,15 +1,18 @@
-class Preprocessor:
-    def __init__(self):
-        self.te = None  # TargetEncoder
-        self.st = None  # SequenceTransformer
-        self.num_cols = NUMERICAL_COLUMNS
-        self.cat_cols = CATEGORICAL_COLUMNS
-        self.target_col = TARGET_COLUMN
-        self.key_col = KEY_COLUMN
-        self.val_col = VALUE_COLUMN
-        self.ts_col = TIMESTAMP_COLUMN
+from abstractPreprocessor import (
+    AbstractPreprocessor,
+    LastNDayAggregator,
+    SequenceGenerator,
+    SequenceTransformer,
+    TargetEncoder,
+    TimestampAggregator,
+)
 
-    def preprocess(self, df, is_train):
+
+class Preprocessor(AbstractPreprocessor):
+    def __init__(self, config):
+        super().__init__(self, config)
+
+    def preprocess(self, , df, is_train):
         if is_train:
             self.te = TargetEncoder()
             self.st = SequenceTransformer(self.key_col)

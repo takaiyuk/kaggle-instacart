@@ -56,3 +56,5 @@ parameter:
         dropout: 0.25
     linear:
         C: 0.1
+    null_importance:
+        threshold: 10

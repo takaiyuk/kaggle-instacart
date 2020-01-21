@@ -2,18 +2,8 @@ import category_encoders as ce
 import numpy as np
 import pandas as pd
 from scipy.stats import mode
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import TruncatedSVD
-
-from .const import (
-    NUMERICAL_COLUMNS,
-    CATEGORICAL_COLUMNS,
-    TARGET_COLUMN,
-    KEY_COLUMN,
-    VALUE_COLUMN,
-    TIMESTAMP_COLUMN,
-)
 
 
 def null_count(ser):
@@ -263,16 +253,17 @@ class SequenceTransformer(BaseFitTransformer):
         return df_
 
 
-class Preprocessor:
-    def __init__(self):
+class AbstractPreprocessor:
+    def __init__(self, config):
+        self.config = config
+
         self.te = None  # TargetEncoder
         self.st = None  # SequenceTransformer
-        self.num_cols = NUMERICAL_COLUMNS
-        self.cat_cols = CATEGORICAL_COLUMNS
-        self.target_col = TARGET_COLUMN
-        self.key_col = KEY_COLUMN
-        self.val_col = VALUE_COLUMN
-        self.ts_col = TIMESTAMP_COLUMN
+        self.cat_cols = self.config["column"]["categorical"]
+        self.key_col = self.config["column"]["key"]
+        self.num_cols = self.config["column"]["numerical"]
+        self.target_col = self.config["column"]["target"]
+        self.ts_col = self.config["column"]["timestamp"]
 
-    def preprocess(self, train, test):
+    def preprocess(self, df, is_train):
         raise NotImplementedError

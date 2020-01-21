@@ -2,7 +2,7 @@ import joblib
 import pandas as pd
 
 
-class DataLoader:
+class AbstractDataLoader:
     def __init__(self, config):
         self.config = config
         self.train_path = config["path"]["train"]
