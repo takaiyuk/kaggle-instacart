@@ -19,7 +19,7 @@ class AbstractDataLoader:
             df = self._load(
                 self.train_path,
                 nrows=nrows,
-                parse_dates=[self.config["column"]["timestamp"]],
+                parse_dates=self.config["column"]["timestamp"],
             )
             return df
 
@@ -28,7 +28,7 @@ class AbstractDataLoader:
             df = self._load(
                 self.test_path,
                 nrows=nrows,
-                parse_dates=[self.config["column"]["timestamp"]],
+                parse_dates=self.config["column"]["timestamp"],
             )
             return df
 

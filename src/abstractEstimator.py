@@ -1,7 +1,6 @@
 import catboost as cb
 import gc
 import lightgbm as lgb
-import logging
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,9 +12,11 @@ from sklearn.metrics import mean_absolute_error as mae
 from sklearn.metrics import mean_squared_error as mse
 from sklearn.metrics import roc_auc_score as auc
 from typing import Generator, Tuple
-import xgboost as xgb
+
+# import xgboost as xgb
 
 from .featureselector import NullImportance
+from .utils import Timer
 
 
 def AUC(y_true, y_pred):
@@ -36,11 +37,11 @@ class BaseEstimator:
         self.logger = logger
         self.model_type = model_type
         self.version = version
-        self.objective = self.config["model"]["objective"]
+        self.objective = self.config["mode"]["objective"]
         self.kfold_method = self.config["parameter"]["common"]["kfold_method"]
         self.kfold_number = self.config["parameter"]["common"]["kfold_number"]
-        self.stratified_column = self.config["column"]["stratified"]
-        self.group_column = self.config["column"]["group"]
+        self.stratified_column = self.config["column"]["kfold_stratified"]
+        self.group_column = self.config["column"]["kfold_group"]
         self.target_column = self.config["column"]["target"]
         self.drop_columns = self.config["column"]["drop"]
         self.importance = self.config["path"]["importance"]
@@ -62,6 +63,7 @@ class BaseEstimator:
         self.y_true = np.zeros(0)
         self.scaler = MyStandardScaler()
         self.featureselector = NullImportance(self.config["mode"]["objective"])
+        self.timer = Timer()
 
     def fit_(self):
         raise NotImplementedError
@@ -229,7 +231,7 @@ class BaseEstimator:
             print(self.X_train.shape)
             print(self.X_train.head(1))
 
-            with self.utils.timer("Process Train FeatureSelector"):
+            with self.timer.timer("Process Train FeatureSelector"):
                 self.selected_features = self.featureselector.select_features(
                     self.X_train.loc[:, self.selected_columns],
                     self.y_train,
@@ -273,9 +275,6 @@ class BaseEstimator:
             if self.target_column in df.columns:
                 df.drop(self.target_column, axis=1, inplace=True)
             X_test = df.loc[:, use_cols]
-            self.test_installation_id = df["installation_id"].values
-            del df
-            gc.collect()
             if self.model_type == "linear":
                 X_test.loc[:, self.selected_features] = self.scaler.process(
                     X_test.loc[:, self.selected_features].values, is_train=False
@@ -289,7 +288,7 @@ class BaseEstimator:
 class AbstractCatboostEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
-        self.params = self.config["parameters"]["cb"]
+        self.params = self.config["parameter"]["cb"]
 
     def fit_(
         self,
@@ -329,7 +328,7 @@ class AbstractCatboostEstimator(BaseEstimator):
 class AbstractLightgbmEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
-        self.params = self.config["parameters"]["lgb"]
+        self.params = self.config["parameter"]["lgb"]
 
     def fit_(
         self,
@@ -369,7 +368,7 @@ class AbstractLightgbmEstimator(BaseEstimator):
 class AbstractLinearEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
-        self.params = self.config["parameters"]["linear"]
+        self.params = self.config["parameter"]["linear"]
 
     def fit_(
         self,
@@ -398,12 +397,13 @@ class AbstractLinearEstimator(BaseEstimator):
 class AbstractNeuralnetEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
-        self.params = self.config["parameters"]["nn"]
+        self.params = self.config["parameter"]["nn"]
 
 
 class AbstractXgboostEstimator(BaseEstimator):
     def __init__(self, config, logger, model_type, version):
         super().__init__(config, logger, model_type, version)
+        self.params = self.config["parameter"]["xgb"]
 
     def fit_(
         self,
@@ -412,31 +412,44 @@ class AbstractXgboostEstimator(BaseEstimator):
         X_eval: pd.DataFrame = None,
         y_eval: np.array = None,
     ) -> None:
-        self.logger.info(f"Model Type: {self.model_type}")
-        self.logger.info(f"Xgboost Params: {self.params}")
-        self.feature_names = X_train.columns.tolist()
-        if self.objective == "clf":
-            self.model = xgb.XGBClassifier(**self.params)
-        elif self.objective == "reg":
-            self.model = xgb.XGBRegressor(**self.params)
-        if X_eval is not None:
-            self.model.fit(
-                X_train,
-                y_train,
-                eval_set=[(X_train, y_train), (X_eval, y_eval)],
-                early_stopping_rounds=self.params["early_stopping_rounds"],
-                verbose=self.params["verbose"],
-            )
-            self.logger.info(f"Best Iteration: {self.model.best_iteration}")
-        else:
-            self.model.fit(X_train, y_train)
-        self.models.append(self.model)
+        pass
 
     def predict_(self, X: np.array) -> np.array:
-        if self.objective == "clf":
-            return self.model.predict_proba(X)[:, 1]
-        elif self.objective == "reg":
-            return self.model.predict(X)
+        pass
+
+
+#     def fit_(
+#         self,
+#         X_train: pd.DataFrame,
+#         y_train: np.array,
+#         X_eval: pd.DataFrame = None,
+#         y_eval: np.array = None,
+#     ) -> None:
+#         self.logger.info(f"Model Type: {self.model_type}")
+#         self.logger.info(f"Xgboost Params: {self.params}")
+#         self.feature_names = X_train.columns.tolist()
+#         if self.objective == "clf":
+#             self.model = xgb.XGBClassifier(**self.params)
+#         elif self.objective == "reg":
+#             self.model = xgb.XGBRegressor(**self.params)
+#         if X_eval is not None:
+#             self.model.fit(
+#                 X_train,
+#                 y_train,
+#                 eval_set=[(X_train, y_train), (X_eval, y_eval)],
+#                 early_stopping_rounds=self.params["early_stopping_rounds"],
+#                 verbose=self.params["verbose"],
+#             )
+#             self.logger.info(f"Best Iteration: {self.model.best_iteration}")
+#         else:
+#             self.model.fit(X_train, y_train)
+#         self.models.append(self.model)
+
+#     def predict_(self, X: np.array) -> np.array:
+#         if self.objective == "clf":
+#             return self.model.predict_proba(X)[:, 1]
+#         elif self.objective == "reg":
+#             return self.model.predict(X)
 
 
 class MyStandardScaler:

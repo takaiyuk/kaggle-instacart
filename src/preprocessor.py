@@ -1,4 +1,4 @@
-from abstractPreprocessor import (
+from .abstractPreprocessor import (
     AbstractPreprocessor,
     LastNDayAggregator,
     SequenceGenerator,
@@ -10,7 +10,7 @@ from abstractPreprocessor import (
 
 class Preprocessor(AbstractPreprocessor):
     def __init__(self, config):
-        super().__init__(self, config)
+        super().__init__(config)
 
     def preprocess(self, df, is_train):
         # if is_train:

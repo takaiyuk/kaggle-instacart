@@ -2,9 +2,9 @@ mode:
     project: ""
     objective: "reg"
 path:
-    train: "../input/project/train.csv"
-    test: "../input/project/test.csv"
-    samble_submission: "../input/project/samble_submission.csv"
+    train: "./input/project/train.csv"
+    test: "./input/project/test.csv"
+    sample_submission: "./input/project/samble_submission.csv"
     importance: "./importance"
     logs: "./logs"
     model: "./model"
@@ -14,7 +14,7 @@ column:
     target: ""
     index: None
     key: None
-    timestamp: ""
+    timestamp: []
     categorical: []
     numerical: []
     drop: []

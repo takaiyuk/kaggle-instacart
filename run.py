@@ -14,7 +14,6 @@ from src.utils import Logger, Timer, load_yaml, mkdir
 from src.dataloader import DataLoader
 from src.preprocessor import Preprocessor
 from src.estimator import (
-    BaseEstimator,
     CatboostEstimator,
     LightgbmEstimator,
     LinearEstimator,
@@ -44,7 +43,7 @@ class Runner:
         self.logger, self.version = Logger(self.config["path"]["logs"]).get_logger()
         self.timer = Timer()
         self.dataloader = DataLoader(self.config)
-        self.preprocessor = Preprocessor()
+        self.preprocessor = Preprocessor(self.config)
         if self.model == "cb":
             self.estimator = CatboostEstimator(
                 self.config, self.logger, self.model, self.version
@@ -76,6 +75,8 @@ class Runner:
 
         for k, v in self.parser.items():
             self.logger.info(f"{k}: {v}")
+        for k, v in self.config.items():
+            self.logger.info(f"{k}: {v}")
 
     def run(self):
         try:
@@ -105,8 +106,8 @@ class Runner:
                 del test
                 gc.collect()
 
-            with self.utils.timer("Process Submission"):
-                submit = self.loader.load_sample_submission()
+            with self.timer.timer("Process Submission"):
+                submit = self.dataloader.load_sample_submission()
                 submit[self.config["column"]["target"]] = self.estimator.pred_test
                 submit.to_csv(
                     f'{self.config["path"]["submit"]}/submission_{self.version}.csv'
@@ -115,7 +116,7 @@ class Runner:
         except Exception as e:
             t, v, tb = sys.exc_info()
             x = traceback.format_exception(t, v, tb)
-            self.logger.info(f"error occurred: {''.join(x)}")
+            self.logger.info(f"[ERROR]: {''.join(x)}")
             raise e
 
 
