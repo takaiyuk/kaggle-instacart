@@ -1,10 +1,12 @@
 mode:
     project: ""
     objective: "reg"
+    null_importance: True
+    debug_nrows: 10000
 path:
     train: "./input/project/train.csv"
     test: "./input/project/test.csv"
-    sample_submission: "./input/project/samble_submission.csv"
+    sample_submission: "./input/project/sample_submission.csv"
     importance: "./importance"
     logs: "./logs"
     model: "./model"

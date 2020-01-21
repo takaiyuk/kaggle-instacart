@@ -33,7 +33,7 @@ parser.add_argument(
 p = vars(parser.parse_args())
 
 
-class Runner:
+class AbstractRunner:
     def __init__(self, parser, config):
         self.parser = parser
         self.config = config
@@ -71,12 +71,15 @@ class Runner:
 
         self.nrows = None
         if self.debug:
-            self.nrows = 100000
+            self.nrows = self.config["mode"]["debug_nrows"]
 
         for k, v in self.parser.items():
             self.logger.info(f"{k}: {v}")
         for k, v in self.config.items():
-            self.logger.info(f"{k}: {v}")
+            self.logger.info(f'{"="*30} {k} {"="*30}')
+            for kk, vv in v.items():
+                self.logger.info(f"{kk}: {vv}")
+        self.logger.info(f"\n")
 
     def run(self):
         try:
@@ -126,4 +129,4 @@ if __name__ == "__main__":
         # path が file ではなく directory の場合 mkdir する
         if os.path.splitext(os.path.basename(v))[1] == "":
             mkdir(v)
-    Runner(p, config).run()
+    AbstractRunner(p, config).run()
