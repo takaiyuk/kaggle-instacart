@@ -1,3 +1,5 @@
+feature/*
+!feature/.keep
 importance/*
 !importance/.keep
 input/*

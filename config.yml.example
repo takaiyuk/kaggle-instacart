@@ -7,7 +7,7 @@ path:
     train: "./input/project/train.csv"
     test: "./input/project/test.csv"
     sample_submission: "./input/project/sample_submission.csv"
-    feather: "./input/feather"
+    column_series: "./input/column_series"
     feature: "./feature"
     importance: "./importance"
     logs: "./logs"
