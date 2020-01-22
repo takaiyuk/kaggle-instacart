@@ -12,19 +12,14 @@ config = load_yaml()
 Feature.dir = config["path"]["feature"]
 
 """
-import category_encoders as ce
-class NeighborhoodOrdinal(Feature):
+class FeatureGenerator(Feature):
     def create_features(self):
         # self.columns には特徴量生成に必要な列名を書く
-        self.columns = ["Neighborhood"]
+        self.columns = ["user_id"]
         self.load(self.columns)
-        oe = ce.ordinal.OrdinalEncoder()
-
-        self.train["Neighborhood_ordinal"] = oe.fit_transform(
-            self.train["Neighborhood"]
-        )
-        self.test["Neighborhood_ordinal"] = oe.transform(self.test["Neighborhood"])
-        create_memo("Neighborhood_ordinal", "Neighborhood をラベル化した")
+        self.train["hoge"] = "hoge"
+        self.test["hoge"] = "hoge"
+        create_memo("feature name", "feature name memo")
 """
 
 if __name__ == "__main__":
