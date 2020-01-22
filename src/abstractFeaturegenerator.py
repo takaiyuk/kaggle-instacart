@@ -46,7 +46,7 @@ class Feature(metaclass=ABCMeta):
         print(f"{self.name} is saved")
 
     def load(self, columns):
-        """columns: 特徴量生成に必要なベースとなる特徴量"""
+        """columns: 特徴量生成に必要な列名のリスト"""
         trains = []
         tests = []
         for col in columns:
