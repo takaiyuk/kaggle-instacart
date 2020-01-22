@@ -1,13 +1,15 @@
 from abc import ABCMeta, abstractmethod
 import argparse
 import csv
+import gc
 import inspect
 import joblib
+import numpy as np
 import os
 import pandas as pd
 import warnings
 
-from .utils import Timer
+from .utils import Timer, mkdir, load_yaml
 
 warnings.filterwarnings("ignore")
 
@@ -25,6 +27,7 @@ class Feature(metaclass=ABCMeta):
         self.train_path = os.path.join(self.dir_, f"{self.name}_train.jbl")
         self.test_path = os.path.join(self.dir_, f"{self.name}_test.jbl")
         self.columns = []
+        self.config = load_yaml()
 
     def run(self):
         with Timer().timer(self.name):
@@ -50,13 +53,19 @@ class Feature(metaclass=ABCMeta):
         trains = []
         tests = []
         for col in columns:
-            # TODO: 列単位で joblib 保存し、そこから特徴量に必要な列のみ列単位で読み出す
-            trains.append(joblib.load(self.train_path))
-        self.train = pd.concat(trains)
+            trains.append(
+                joblib.load(
+                    os.path.join(self.config["path"]["pdseries"], f"{col}_train.jbl")
+                )
+            )
+        self.train = pd.concat(trains, axis=1)
         for col in columns:
-            # TODO: 列単位で joblib 保存し、そこから特徴量に必要な列のみ列単位で読み出す
-            tests.append(joblib.load(self.test_path))
-        self.test = pd.concat(tests)
+            tests.append(
+                joblib.load(
+                    os.path.join(self.config["path"]["pdseries"], f"{col}_test.jbl")
+                )
+            )
+        self.test = pd.concat(tests, axis=1)
 
     def drop(self):
         self.train.drop(self.columns, axis=1, inplace=True)
@@ -111,3 +120,28 @@ def create_memo(col_name, desc):
 
         writer = csv.writer(f)
         writer.writerow([col_name, desc])
+
+
+# Split raw pd.DataFrame to pd.Series column for convenience
+def save_column():
+    config = load_yaml()
+    prefix = config["path"]["pdseries"]
+    mkdir(prefix)
+
+    if np.sum([1 if "_train.jbl" in f else 0 for f in os.listdir(prefix)]) == 0:
+        print("train prepare")
+        train = pd.read_csv(config["path"]["train"])
+        for col in train.columns:
+            joblib.dump(
+                train[col], os.path.join(prefix, f"{col}_train.jbl"), compress=3
+            )
+        del train
+        gc.collect()
+
+    if np.sum([1 if "_test.jbl" in f else 0 for f in os.listdir(prefix)]) == 0:
+        print("test prepare")
+        test = pd.read_csv(config["path"]["test"])
+        for col in test.columns:
+            joblib.dump(test[col], os.path.join(prefix, f"{col}_test.jbl"), compress=3)
+        del test
+        gc.collect()
