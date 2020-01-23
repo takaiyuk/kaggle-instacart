@@ -51,6 +51,3 @@ class AbstractDataLoader:
                 nrows=nrows,
                 index_col=self.config["column"]["index"],
             )
-
-    def load_joblib(self, path):
-        return joblib.load(path)

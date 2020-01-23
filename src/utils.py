@@ -1,18 +1,21 @@
 from contextlib import contextmanager
 import datetime
+import joblib
 import logging
 import numpy as np
 import os
+import pandas as pd
 import time
+from typing import Any, Tuple
 import yaml
 
 
 class Logger:
-    def __init__(self, log_dir="./logs"):
+    def __init__(self, log_dir: str = "./logs") -> None:
         self.log_dir = log_dir
         self.version = None
 
-    def _make_new_version(self):
+    def _make_new_version(self) -> None:
         if not os.path.exists(self.log_dir):
             os.mkdir(self.log_dir)
 
@@ -31,13 +34,13 @@ class Logger:
 
         self.version = new_version
 
-    def _make_logs_dir(self):
+    def _make_logs_dir(self) -> None:
         if self.log_dir is not None:
             if not os.path.exists(self.log_dir):
                 os.mkdir(self.log_dir)
 
     # print() の代わりに logger.info() を使用することでログ出力可能
-    def get_logger(self):
+    def get_logger(self) -> Tuple[logging.Logger, int]:
         self._make_logs_dir()
         self._make_new_version()
         logger_ = logging.getLogger("main")
@@ -82,19 +85,23 @@ class Timer:
             logger.info(f"FINISH {fname} time: {self._elapesd_minutes():.1f}min.")
 
 
-def load_yaml(path="./config.yml"):
+def load_joblib(path: str) -> Any:
+    return joblib.load(path)
+
+
+def load_yaml(path: str = "./config.yml") -> dict:
     with open(path, "r") as f:
         return yaml.load(f)
 
 
-def mkdir(path):
+def mkdir(path) -> None:
     try:
         os.mkdir(path)
     except FileExistsError:
         pass
 
 
-def reduce_mem_usage(df, verbose=True):
+def reduce_mem_usage(df: pd.DataFrame, verbose: bool = True) -> pd.DataFrame:
     """ iterate through all the columns of a dataframe and modify the data type to reduce memory usage."""
     start_mem = df.memory_usage().sum() / 1024 ** 2
     numerics = [
@@ -137,3 +144,6 @@ def reduce_mem_usage(df, verbose=True):
         )
     return df
 
+
+def save_joblib(target: Any, path: str) -> None:
+    joblib.dump(target, path, compress=3)
