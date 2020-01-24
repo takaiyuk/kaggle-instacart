@@ -34,3 +34,4 @@ https://www.kaggle.com/c/instacart-market-basket-analysis/discussion/38100
 https://www.kaggle.com/c/instacart-market-basket-analysis/discussion/38126  
 - 12th　　
 https://www.kaggle.com/c/instacart-market-basket-analysis/discussion/38110　　
+
