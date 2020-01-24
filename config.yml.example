@@ -29,6 +29,7 @@ parameter:
         kfold_method: "normal"
         kfold_number: 5
         objective: "reg"
+        target_encoding: []
     lgb:
         objective: "regression"
         n_estimators: 4000
